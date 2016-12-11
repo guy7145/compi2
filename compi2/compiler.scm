@@ -714,8 +714,8 @@
    (? 'var var?)
    (lambda (var) `(var ,var))))
 
-;(load "guy-rules.scm")
-(load "../compi2/max-rules.scm")
+(load "guy-rules.scm")
+(load "max-rules.scm")
 
 (define tag-parse
   (let ((run
@@ -723,8 +723,10 @@
           <const-rule>
           <quote-rule>
           <var-rule>
-	  <define-rule>
-;	  <define-mit-rule>
+          <if2-rule>
+          <if3-rule>
+          <define-rule>
+          <define-mit-rule>
           <disj-rule-no-args>
           <disj-rule-single-arg>
           <disj-rule>
