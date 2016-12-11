@@ -7,19 +7,19 @@
 
 (define <line-comment>
   (let ((<end-of-line-comment>
-	 (new (*parser (char #\newline))
-	      (*parser <end-of-input>)
-	      (*disj 2)
-	      done)))
+         (new (*parser (char #\newline))
+              (*parser <end-of-input>)
+              (*disj 2)
+              done)))
     (new (*parser (char #\;))
-	 
-	 (*parser <any-char>)
-	 (*parser <end-of-line-comment>)
-	 *diff *star
 
-	 (*parser <end-of-line-comment>)
-	 (*caten 3)
-	 done)))
+         (*parser <any-char>)
+         (*parser <end-of-line-comment>)
+         *diff *star
+
+         (*parser <end-of-line-comment>)
+         (*caten 3)
+         done)))
 
 (define <sexpr-comment>
   (new (*parser (word "#;"))
@@ -36,22 +36,22 @@
 (define <comment>
   (disj <line-comment>
         <delayed-infix-comment>
-	<sexpr-comment>))
+        <sexpr-comment>))
 
 (define <skip>
   (disj <comment>
-	<whitespace>))
+        <whitespace>))
 
 (define ^^<wrapped>
   (lambda (<wrapper>)
     (lambda (<p>)
       (new (*parser <wrapper>)
-	   (*parser <p>)
-	   (*parser <wrapper>)
-	   (*caten 3)
-	   (*pack-with
-	    (lambda (_left e _right) e))
-	   done))))
+           (*parser <p>)
+           (*parser <wrapper>)
+           (*caten 3)
+           (*pack-with
+            (lambda (_left e _right) e))
+           done))))
 
 (define ^<skipped*> (^^<wrapped> (star <skip>)))
 
@@ -75,19 +75,19 @@
 
 (define <CharPrefix>
   (new
-   
+
    (*parser (char #\#))
    (*parser (char #\\))
    (*caten 2)
-   
+
    done))
 
 (define <VisibleSimpleChar>
   (new
 
    (*parser (const
-	     (lambda (ch)
-	       (char<? #\space ch))))
+             (lambda (ch)
+               (char<? #\space ch))))
 
    done))
 
@@ -105,46 +105,46 @@
    (*disj 7)
 
    (*pack (lambda (x)
-	    (let ((x (list->string x)))
-	      (cond ((string-ci=? x "lambda")  #\x3bb)
-		    ((string-ci=? x "newline") #\newline)
-		    ((string-ci=? x "nul")     #\nul)
-		    ((string-ci=? x "page")    #\page)
-		    ((string-ci=? x "return")  #\return)
-		    ((string-ci=? x "space")   #\space)
-		    ((string-ci=? x "tab")     #\tab)
-		    ))))
+            (let ((x (list->string x)))
+              (cond ((string-ci=? x "lambda")  #\x3bb)
+                    ((string-ci=? x "newline") #\newline)
+                    ((string-ci=? x "nul")     #\nul)
+                    ((string-ci=? x "page")    #\page)
+                    ((string-ci=? x "return")  #\return)
+                    ((string-ci=? x "space")   #\space)
+                    ((string-ci=? x "tab")     #\tab)
+                    ))))
 
    done))
 
 (define <HexChar>
   (let ((zero (char->integer #\0))
-	(lc-a (char->integer #\a))
-	(uc-a (char->integer #\A)))
+        (lc-a (char->integer #\a))
+        (uc-a (char->integer #\A)))
     (new (*parser (range #\0 #\9))
-	 (*pack
-	  (lambda (ch)
-	    (- (char->integer ch) zero)))
+         (*pack
+          (lambda (ch)
+            (- (char->integer ch) zero)))
 
-	 (*parser (range #\a #\f))
-	 (*pack
-	  (lambda (ch)
-	    (+ 10 (- (char->integer ch) lc-a))))
+         (*parser (range #\a #\f))
+         (*pack
+          (lambda (ch)
+            (+ 10 (- (char->integer ch) lc-a))))
 
-	 (*parser (range #\A #\F))
-	 (*pack
-	  (lambda (ch)
-	    (+ 10 (- (char->integer ch) uc-a))))
+         (*parser (range #\A #\F))
+         (*pack
+          (lambda (ch)
+            (+ 10 (- (char->integer ch) uc-a))))
 
-	 (*disj 3)
-	 done)))
+         (*disj 3)
+         done)))
 
 (define <HexUnicodeChar>
   (letrec ((hex->int (lambda (lst c)
-			 (if (null? lst)
-			     c
-			     (hex->int (cdr lst) (+ (car lst) (* 16 c))))
-			 )))
+                       (if (null? lst)
+                           c
+                           (hex->int (cdr lst) (+ (car lst) (* 16 c))))
+                       )))
     (new
      (*parser (char #\x))
      (*parser <HexChar>) *plus
@@ -152,8 +152,8 @@
 
      (*pack-with
       (lambda (x hc)
-	(integer->char (hex->int `(,@hc) 0))))
-     
+        (integer->char (hex->int `(,@hc) 0))))
+
      done)))
 
 (define <Char>
@@ -175,17 +175,17 @@
 
 (define <Natural>
   (let ((char->int (lambda (c)
-		     (- (char->integer c)
-			(char->integer #\0)))))
+                     (- (char->integer c)
+                        (char->integer #\0)))))
     (new
      (*parser (range #\0 #\9)) *plus
      (*pack
       (lambda (lst)
-	(letrec ((lst->int (lambda (lst c)
-			     (if (null? lst)
-				 c
-				 (lst->int (cdr lst) (+ (* c 10) (char->int (car lst))))))))
-	  (lst->int lst 0))))
+        (letrec ((lst->int (lambda (lst c)
+                             (if (null? lst)
+                                 c
+                                 (lst->int (cdr lst) (+ (* c 10) (char->int (car lst))))))))
+          (lst->int lst 0))))
      done)))
 
 (define <Integer>
@@ -198,8 +198,8 @@
    (*pack-with
     (lambda (s n)
       (if (and (car s) (equal? (cadr s) #\-))
-	  (- n)
-	  n)))
+          (- n)
+          n)))
    done))
 
 (define <Fraction>
@@ -227,8 +227,8 @@
 (define <StringVisibleChar>
   (new
    (*parser (const
-	      (lambda (ch)
-	       (char<=? #\space ch))))
+             (lambda (ch)
+               (char<=? #\space ch))))
    done))
 
 (define <StringMetaChar>
@@ -241,20 +241,20 @@
    (*parser (word-ci "\\r"))
    (*disj 6)
    (*pack (lambda (x)
-	    (let ((c (cadr x)))
-	      (cond ((char-ci=? c #\t) #\tab)
-		    ((char-ci=? c #\f) #\x0c)
-		    ((char-ci=? c #\n) #\newline)
-		    ((char-ci=? c #\r) #\return)
-		    (else c)))))
+            (let ((c (cadr x)))
+              (cond ((char-ci=? c #\t) #\tab)
+                    ((char-ci=? c #\f) #\x0c)
+                    ((char-ci=? c #\n) #\newline)
+                    ((char-ci=? c #\r) #\return)
+                    (else c)))))
    done))
 
 (define <StringHexChar>
   (letrec ((hex->int (lambda (lst c)
-			 (if (null? lst)
-			     c
-			     (hex->int (cdr lst) (+ (car lst) (* 16 c))))
-			 )))
+                       (if (null? lst)
+                           c
+                           (hex->int (cdr lst) (+ (car lst) (* 16 c))))
+                       )))
     (new
      (*parser (word-ci "\\x"))
      (*parser <HexChar>) *star
@@ -262,7 +262,7 @@
      (*caten 3)
      (*pack-with
       (lambda (x lst _)
-	(integer->char (hex->int lst 0))))
+        (integer->char (hex->int lst 0))))
      done)))
 
 (define <StringChar>
@@ -312,8 +312,8 @@
   (new
    (*parser <SymbolChar>) *plus
    (*pack (lambda (lst)
-	    (string->symbol
-	     (list->string lst))))
+            (string->symbol
+             (list->string lst))))
    done))
 
 (define <ProperList>
@@ -354,7 +354,7 @@
   (new
    (*parser (char #\'))
    (*delayed (lambda () <sexpr>))
-   (*caten 2)   
+   (*caten 2)
    (*pack-with
     (lambda (_ exp)
       (list 'quote exp)))
@@ -390,7 +390,7 @@
       (list 'unquote-splicing exp)))
    done))
 
-; ************************************************************************************************************************************************************************************
+                                        ; ************************************************************************************************************************************************************************************
 
 
 (define *<InfixExpressionDelayed>
@@ -413,7 +413,7 @@
 (define <InfixExtension>
   (new
    (*parser <InfixPrefixExtensionPrefix>)
-    *<InfixExpressionDelayed>
+   *<InfixExpressionDelayed>
    (*caten 2)
    (*pack-with
     (lambda (_ expr) expr))
@@ -475,8 +475,8 @@
    *diff
    *plus
    (*pack (lambda (lst)
-	    (string->symbol
-	     (list->string lst))))
+            (string->symbol
+             (list->string lst))))
    done))
 
 (define <InfixSexprEscape>
@@ -493,7 +493,7 @@
 (define <InfixParen>
   (new
    (*parser (char #\())
-    *<InfixExpressionDelayed>
+   *<InfixExpressionDelayed>
    (*parser (char #\)))
    (*caten 3)
    (*pack-with
@@ -510,13 +510,13 @@
                 ;; args ;;
                 ; first arg
                 *<InfixExpressionDelayed>
-                ; rest args (some or none)
+                                        ; rest args (some or none)
                 (*parser (char #\,))
                 *<InfixExpressionDelayed>
                 (*caten 2)
                 (*pack-with (lambda (_ expr) expr))
                 *star
-                ; catenate
+                                        ; catenate
                 (*caten 2)
                 (*pack-with
                  (lambda (first-arg rest-args) `(,first-arg ,@rest-args)))
@@ -538,25 +538,25 @@
       `(,function ,@args)))
    done))
 
-(define <InfixArrayGet> (^<skipped*> 
-  (new
-   (*parser (^<skipped*> <Level-Paren-&-Friends>))
-   (*parser (char #\[))
-   (*delayed (lambda () <InfixArrayGet>))
-   (*delayed (lambda () <InfixExpression>))
-   (*disj 2)
-   (*parser (char #\]))
-   (*caten 3) 
-   (*pack-with 
-    (lambda (lp expr rp) expr))
-   *plus
-   (*caten 2)
-   (*pack-with
-    (let ((expr-builder (build-op-formula 'vector-ref)))
-    (lambda (arr is)
-      (fold-left expr-builder arr is))))
-   done)))
- 
+(define <InfixArrayGet> (^<skipped*>
+                         (new
+                          (*parser (^<skipped*> <Level-Paren-&-Friends>))
+                          (*parser (char #\[))
+                          (*delayed (lambda () <InfixArrayGet>))
+                          (*delayed (lambda () <InfixExpression>))
+                          (*disj 2)
+                          (*parser (char #\]))
+                          (*caten 3)
+                          (*pack-with
+                           (lambda (lp expr rp) expr))
+                          *plus
+                          (*caten 2)
+                          (*pack-with
+                           (let ((expr-builder (build-op-formula 'vector-ref)))
+                             (lambda (arr is)
+                               (fold-left expr-builder arr is))))
+                          done)))
+
 (define <Level-ArrFun> (disj <InfixArrayGet> <InfixFuncall> <Level-Paren-&-Friends>))
 
 ;; Level
@@ -564,28 +564,28 @@
 
 (define <InfixNeg>
   (new (*parser (let ((<next-level> (new (*delayed (lambda () <InfixNeg>))
-                                (*parser <Level-ArrFun>)
-                                (*disj 2)
-                                done)))
-         (new
-              ;; (without parentesis) 
-              ;; no spaces between '-' and the following expression 
-              (*parser (char #\-))
-              (*parser <next-level>)
-              (*caten 2)
-              (*pack-with
-               (lambda (minus element)
-                 (cond ((number? element) (- element))
-                       (else `(- ,element)))))
-              ;; (with parentesis) 
-              ;; spaces between '-' and the following expression
-              (*parser (^<skipped*> (char #\-)))
-              (*parser <next-level>)
-              (*caten 2)
-              (*pack-with
-               (lambda (minus element) `(- ,element)))
-              (*disj 2)
-              done)))
+                                         (*parser <Level-ArrFun>)
+                                         (*disj 2)
+                                         done)))
+                  (new
+                   ;; (without parentesis) 
+                   ;; no spaces between '-' and the following expression 
+                   (*parser (char #\-))
+                   (*parser <next-level>)
+                   (*caten 2)
+                   (*pack-with
+                    (lambda (minus element)
+                      (cond ((number? element) (- element))
+                            (else `(- ,element)))))
+                   ;; (with parentesis) 
+                   ;; spaces between '-' and the following expression
+                   (*parser (^<skipped*> (char #\-)))
+                   (*parser <next-level>)
+                   (*caten 2)
+                   (*pack-with
+                    (lambda (minus element) `(- ,element)))
+                   (*disj 2)
+                   done)))
        (*parser <Level-ArrFun>)
        (*disj 2)
        done))
@@ -597,8 +597,8 @@
 ;; Level
 ;; 
 (define build-op-formula-op1-op2
-    (lambda (element op-expr-pair)
-      (let ((op (car op-expr-pair)) (expr (cdr op-expr-pair)))
+  (lambda (element op-expr-pair)
+    (let ((op (car op-expr-pair)) (expr (cdr op-expr-pair)))
       `(,op ,element ,@expr))))
 
 (define <level-op1-op2>
@@ -626,7 +626,7 @@
 
 ;; Level
 ;;
-(define <Level-AddSub> (<level-op1-op2> <Level-MulDiv> #\+ #\- "+" "-")) 
+(define <Level-AddSub> (<level-op1-op2> <Level-MulDiv> #\+ #\- "+" "-"))
 
 ;; Entry Point
 ;; 
@@ -634,14 +634,14 @@
 
 ;; Comments
 ;; 
-(define <InfixComment> 
+(define <InfixComment>
   (new (*parser (word "#;"))
        (*parser <InfixExpression>)
        (*caten 2)
        (*pack-with (lambda (_1 _2) (void)))
        done))
 
-; ************************************************************************************************************************************************************************************
+                                        ; ************************************************************************************************************************************************************************************
 
 (define <sexpr>
   (^<skipped*>
@@ -661,12 +661,12 @@
          <UnquoteAndSpliced>
          )))
 
-;*************************************************************************************************
+                                        ;*************************************************************************************************
 
 (load "pattern-matcher.scm")
 
 
-; ________________________________________________________________________________________________
+                                        ; ________________________________________________________________________________________________
 ;;; A naive, one-level quasiquote implementation + optimizations
 ;;;
 ;;; Programmer: Mayer Goldberg, 2016
@@ -674,9 +674,9 @@
   (lambda (tag)
     (lambda (e)
       (and (pair? e)
-	   (eq? (car e) tag)
-	   (pair? (cdr e))
-	   (null? (cddr e))))))
+           (eq? (car e) tag)
+           (pair? (cdr e))
+           (null? (cddr e))))))
 
 (define quote? (^quote? 'quote))
 (define unquote? (^quote? 'unquote))
@@ -684,95 +684,95 @@
 
 (define const?
   (let ((simple-sexprs-predicates
-	 (list boolean? char? number? string?)))
+         (list boolean? char? number? string?)))
     (lambda (e)
       (or (ormap (lambda (p?) (p? e))
-		 simple-sexprs-predicates)
-	  (quote? e)))))
+           simple-sexprs-predicates)
+          (quote? e)))))
 
 (define quotify
   (lambda (e)
     (if (or (null? e)
-	    (pair? e)
-	    (symbol? e)
-	    (vector? e))
-	`',e
-	e)))
+            (pair? e)
+            (symbol? e)
+            (vector? e))
+        `',e
+        e)))
 
 (define unquotify
   (lambda (e)
     (if (quote? e)
-	(cadr e)
-	e)))
+        (cadr e)
+        e)))
 
 (define const-pair?
   (lambda (e)
     (and (quote? e)
-	 (pair? (cadr e)))))
+         (pair? (cadr e)))))
 
 (define expand-qq
   (letrec ((expand-qq
-	    (lambda (e)
-	      (cond ((unquote? e) (cadr e))
-		    ((unquote-splicing? e)
-		     (error 'expand-qq
-		       "unquote-splicing here makes no sense!"))
-		    ((pair? e)
-		     (let ((a (car e))
-			   (b (cdr e)))
-		       (cond ((unquote-splicing? a)
-			      `(append ,(cadr a) ,(expand-qq b)))
-			     ((unquote-splicing? b)
-			      `(cons ,(expand-qq a) ,(cadr b)))
-			     (else `(cons ,(expand-qq a) ,(expand-qq b))))))
-		    ((vector? e) `(list->vector ,(expand-qq (vector->list e))))
-		    ((or (null? e) (symbol? e)) `',e)
-		    (else e))))
-	   (optimize-qq-expansion (lambda (e) (optimizer e (lambda () e))))
-	   (optimizer
-	    (compose-patterns
-	     (pattern-rule
-	      `(append ,(? 'e) '())
-	      (lambda (e) (optimize-qq-expansion e)))
-	     (pattern-rule
-	      `(append ,(? 'c1 const-pair?) (cons ,(? 'c2 const?) ,(? 'e)))
-	      (lambda (c1 c2 e)
-		(let ((c (quotify `(,@(unquotify c1) ,(unquotify c2))))
-		      (e (optimize-qq-expansion e)))
-		  (optimize-qq-expansion `(append ,c ,e)))))
-	     (pattern-rule
-	      `(append ,(? 'c1 const-pair?) ,(? 'c2 const-pair?))
-	      (lambda (c1 c2)
-		(let ((c (quotify (append (unquotify c1) (unquotify c2)))))
-		  c)))
-	     (pattern-rule
-	      `(append ,(? 'e1) ,(? 'e2))
-	      (lambda (e1 e2)
-		(let ((e1 (optimize-qq-expansion e1))
-		      (e2 (optimize-qq-expansion e2)))
-		  `(append ,e1 ,e2))))
-	     (pattern-rule
-	      `(cons ,(? 'c1 const?) (cons ,(? 'c2 const?) ,(? 'e)))
-	      (lambda (c1 c2 e)
-		(let ((c (quotify (list (unquotify c1) (unquotify c2))))
-		      (e (optimize-qq-expansion e)))
-		  (optimize-qq-expansion `(append ,c ,e)))))
-	     (pattern-rule
-	      `(cons ,(? 'e1) ,(? 'e2))
-	      (lambda (e1 e2)
-		(let ((e1 (optimize-qq-expansion e1))
-		      (e2 (optimize-qq-expansion e2)))
-		  (if (and (const? e1) (const? e2))
-		      (quotify (cons (unquotify e1) (unquotify e2)))
-		      `(cons ,e1 ,e2))))))))
+            (lambda (e)
+              (cond ((unquote? e) (cadr e))
+                    ((unquote-splicing? e)
+                     (error 'expand-qq
+                            "unquote-splicing here makes no sense!"))
+                    ((pair? e)
+                     (let ((a (car e))
+                           (b (cdr e)))
+                       (cond ((unquote-splicing? a)
+                              `(append ,(cadr a) ,(expand-qq b)))
+                             ((unquote-splicing? b)
+                              `(cons ,(expand-qq a) ,(cadr b)))
+                             (else `(cons ,(expand-qq a) ,(expand-qq b))))))
+                    ((vector? e) `(list->vector ,(expand-qq (vector->list e))))
+                    ((or (null? e) (symbol? e)) `',e)
+                    (else e))))
+           (optimize-qq-expansion (lambda (e) (optimizer e (lambda () e))))
+           (optimizer
+            (compose-patterns
+             (pattern-rule
+              `(append ,(? 'e) '())
+              (lambda (e) (optimize-qq-expansion e)))
+             (pattern-rule
+              `(append ,(? 'c1 const-pair?) (cons ,(? 'c2 const?) ,(? 'e)))
+              (lambda (c1 c2 e)
+                (let ((c (quotify `(,@(unquotify c1) ,(unquotify c2))))
+                      (e (optimize-qq-expansion e)))
+                  (optimize-qq-expansion `(append ,c ,e)))))
+             (pattern-rule
+              `(append ,(? 'c1 const-pair?) ,(? 'c2 const-pair?))
+              (lambda (c1 c2)
+                (let ((c (quotify (append (unquotify c1) (unquotify c2)))))
+                  c)))
+             (pattern-rule
+              `(append ,(? 'e1) ,(? 'e2))
+              (lambda (e1 e2)
+                (let ((e1 (optimize-qq-expansion e1))
+                      (e2 (optimize-qq-expansion e2)))
+                  `(append ,e1 ,e2))))
+             (pattern-rule
+              `(cons ,(? 'c1 const?) (cons ,(? 'c2 const?) ,(? 'e)))
+              (lambda (c1 c2 e)
+                (let ((c (quotify (list (unquotify c1) (unquotify c2))))
+                      (e (optimize-qq-expansion e)))
+                  (optimize-qq-expansion `(append ,c ,e)))))
+             (pattern-rule
+              `(cons ,(? 'e1) ,(? 'e2))
+              (lambda (e1 e2)
+                (let ((e1 (optimize-qq-expansion e1))
+                      (e2 (optimize-qq-expansion e2)))
+                  (if (and (const? e1) (const? e2))
+                      (quotify (cons (unquotify e1) (unquotify e2)))
+                      `(cons ,e1 ,e2))))))))
     (lambda (e)
       (optimize-qq-expansion
        (expand-qq e)))))
-; ________________________________________________________________________________________________
+                                        ; ________________________________________________________________________________________________
 
 
 
-; ________________________________________________________________________________________________
+                                        ; ________________________________________________________________________________________________
 ;; __predicats and constants _____________________________________________________________________
 ; ________________________________________________________________________________________________
 
@@ -790,21 +790,36 @@
   (lambda (x)
     (member x *reserved-words*)))
 
+(define not-reserved-word?
+  (lambda (x)
+    (not (member x *reserved-words*))))
+
 (define var?
   (lambda (x)
     (and (symbol? x)
-         (not (reserved-word? x)))))
+         (not-reserved-word? x))))
 
 
 (define simple-const?
   (let ((preds (list boolean? char? number? string?)))
-    (lambda (e) 
+    (lambda (e)
       (ormap (lambda (p?) (p? e)) preds))))
 
+(define listify
+  (lambda (x)
+    (cond ((null? x) '())
+          ((pair? x) x)
+          (else `(,x)))))
 
-; ________________________________________________________________________________________________
+
+                                        ; ________________________________________________________________________________________________
 ;; __rules _______________________________________________________________________________________
 ; ________________________________________________________________________________________________
+
+(define <void-rule>
+  (pattern-rule
+   (void)
+   (lambda () `(const ,*void-object*))))
 
 (define <const-rule>
   (pattern-rule
@@ -827,21 +842,29 @@
 (define tag-parse
   (let ((run
          (compose-patterns
+          <void-rule>
           <const-rule>
           <quote-rule>
           <var-rule>
+          
           <if2-rule>
           <if3-rule>
-          <define-rule>
+          
           <define-mit-rule>
-          <disj-rule-no-args>
-          <disj-rule-single-arg>
+          <define-rule>
+          
           <disj-rule>
+          
           <lambda-rule>
+          
           <seq-rule-explicit>
           
           <assignment-rule>
           <application-rule>
+          
+          <and-rule-no-args>
+          <and-rule>
+          <cond-rule>
           )
          ))
     (lambda (sexpr)
@@ -850,7 +873,7 @@
 (define parse tag-parse)
 
 (display "****************")(newline)
-(display (parse '(lambda (a . Symbol1) E1 E2 E3 E4 (f1 a))))
+                            (display (parse '(define (foo x y . z) (if x y z) #t)))
 
 
 

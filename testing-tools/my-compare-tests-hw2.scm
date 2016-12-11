@@ -53,6 +53,8 @@
    ''(1 2 3)
    '(1 2 3)
    '(lambda (x y z . e) (e (f x y z123)))
+   '(cond)
+   '(define (foo x y))
    ))
 
 (runAllTests

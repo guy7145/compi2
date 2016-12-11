@@ -20,12 +20,29 @@
    `(or ,(? 'expr))
    (lambda (expr) (parse expr) )))
 
-(define <disj-rule>
+(define <disj-rule-several-args>
   (pattern-rule
    `(or ,(? 'expr) . ,(? 'rest-exprs))
    (lambda (expr . rest-exprs)
      (let ((rest-exprs-unwrapped (car rest-exprs)))
        `(or (,(parse expr) ,@(map parse rest-exprs-unwrapped)))))))
+
+(define <disj-rule>
+  (compose-patterns
+           <disj-rule-no-args>
+           <disj-rule-single-arg>
+           <disj-rule-several-args>
+           ))
+
+
+
+
+
+
+
+
+
+
 
 (define beginify
   (lambda (s)
@@ -33,16 +50,36 @@
           ((null? (cdr s)) (car s))
           (else `(begin ,@s)))))
 
-(define is-begin-statement? (lambda (s) (equal? 'begin (car s))))
-(define get-begin-body (lambda (s) (cdr s)))
-(define <seq-rule-explicit>
+(define <begin-rule-empty>
   (pattern-rule
-   (? 'begin-statement list? is-begin-statement?)
-   (lambda (begin-statement)
-     (let ((body (get-begin-body begin-statement)))
-       (cond ((null? body) `(const ,*void-object*))
-             ((null? (cdr body)) (parse (car body)))
-             (else `(seq ,(map parse body))))))))
+   `(begin)
+   (lambda () `(const ,*void-object*))))
+
+(define <begin-rule-single-statement>
+  (pattern-rule
+   `(begin ,(? 'body))
+   (lambda (body) (parse body))))
+
+(define <begin-rule-several-statements>
+  (pattern-rule
+   `(begin ,(? 'first-statement) . ,(? 'rest-statements))
+   (lambda (first-statement . rest-statements)
+     (let ((body (cons first-statement (car rest-statements))))
+     `(seq ,(map parse body))))))
+
+(define <seq-rule-explicit>
+  (compose-patterns
+   <begin-rule-empty>
+   <begin-rule-single-statement>
+   <begin-rule-several-statements>
+   ))
+
+
+#|
+       (display "\033[1;34m first: \033[0m ")(display first-statement)(display "\033[1;34m ;\033[0m ")(newline)
+       (display "\033[1;34m rest: \033[0m ")(display rest-statements)(display "\033[1;34m ;\033[0m ")(newline)
+       (display "\033[1;34m body: \033[0m ")(display body)(display "\033[1;34m ;\033[0m ")(newline)|#
+
 
 (define identify-lambda
   (lambda (args ret-simple ret-opt ret-var)
@@ -83,10 +120,6 @@
             (lambda (s opt) `(lambda-opt ,s ,@opt ,parsed-body)) ; opt
             (lambda (var) `(lambda-var ,var ,parsed-body)) ; var
             )))))))
-
-#|
-(let ((parsed-body (parse body))
-           (parsed-rest-body (map parse (car rest-body))))|#
 
 
 
