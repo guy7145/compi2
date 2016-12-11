@@ -20,6 +20,6 @@
 
 (define <application-rule>
   (pattern-rule
-   `(,(? 'foo symbol?) . ,(? 'args))
+   `(,(? 'foo) . ,(? 'args))
    (lambda (foo . args)
      `(applic ,(parse foo) (,@(map parse (car args)))))))

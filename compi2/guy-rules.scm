@@ -33,10 +33,16 @@
           ((null? (cdr s)) (car s))
           (else `(begin ,@s)))))
 
+(define is-begin-statement? (lambda (s) (equal? 'begin (car s))))
+(define get-begin-body (lambda (s) (cdr s)))
 (define <seq-rule-explicit>
   (pattern-rule
-   `(begin ,(? 'statements))
-   (lambda (statements) `(seq ,(map parse statements)))))
+   (? 'begin-statement list? is-begin-statement?)
+   (lambda (begin-statement)
+     (let ((body (get-begin-body begin-statement)))
+       (cond ((null? body) `(const ,*void-object*))
+             ((null? (cdr body)) (parse (car body)))
+             (else `(seq ,(map parse body))))))))
 
 (define identify-lambda
   (lambda (args ret-simple ret-opt ret-var)
@@ -45,9 +51,9 @@
           (else (identify-lambda
                  (cdr args)
                  (lambda (s) (ret-simple `(,(car args) ,@s))) ;simple
-                 (lambda (s . opt) (ret-opt `(,(car args) ,@s) opt)) ; opt
-                 (lambda (var) (ret-opt `(,(car args)) var))) ; var
-                 ))))
+                 (lambda (s . opt) (ret-opt `(,(car args) ,@s) (car opt))) ; opt
+                 (lambda (var) (ret-opt `(,(car args)) `(,var)))) ; var
+           ))))
 
 (define list-is-duplicative?
   (lambda (s)
@@ -59,30 +65,24 @@
   (lambda (args)
     (not (and (list? args) (list-is-duplicative? args)))))
 
-(define <lambda-rule-single-body-line>
-  (pattern-rule
-   `(lambda ,(? 'args args-not-duplicative?) ,(? 'body))
-   (lambda (args body)
-     (let ((parsed-body (parse body)))
-       (identify-lambda
-        args
-        (lambda (s) `(lambda-simple ,s ,parsed-body)) ; simple
-        (lambda (s opt) `(lambda-opt ,s ,@opt ,parsed-body)) ; opt
-        (lambda (var) `(lambda-var ,var ,parsed-body)) ; var
-        )))))
-
 (define <lambda-rule>
   (pattern-rule
    `(lambda ,(? 'args args-not-duplicative?) ,(? 'body) . ,(? 'rest-body))
    (lambda (args body . rest-body)
-     (let* ((begin-body (beginify (cons body rest-body)))
-            (parsed-body (parse begin-body)))
-       (identify-lambda
-        args
-        (lambda (s) `(lambda-simple ,s ,parsed-body)) ; simple
-        (lambda (s opt) `(lambda-opt ,s ,@opt ,parsed-body)) ; opt
-        (lambda (var) `(lambda-var ,var ,parsed-body)) ; var
-        )))))
+     (let ((rest-body (car rest-body)))
+
+       (let ((body (if (null? rest-body)
+                       body
+                       (beginify (cons body rest-body)))))
+
+         (let ((parsed-body (parse body)))
+
+           (identify-lambda
+            args
+            (lambda (s) `(lambda-simple ,s ,parsed-body)) ; simple
+            (lambda (s opt) `(lambda-opt ,s ,@opt ,parsed-body)) ; opt
+            (lambda (var) `(lambda-var ,var ,parsed-body)) ; var
+            )))))))
 
 #|
 (let ((parsed-body (parse body))

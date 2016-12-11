@@ -14,6 +14,6 @@ echo commented out...
 
 echo HW2:
 scheme --script compare-tests-hw2.scm #| grep TESTS
-# scheme --script my-compare-tests-hw2.scm #| grep TESTS
+scheme --script my-compare-tests-hw2.scm #| grep TESTS
 
 
