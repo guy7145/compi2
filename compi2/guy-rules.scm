@@ -39,9 +39,7 @@
                  ))))
 
 
-
-
-(define <lambda-rule>
+(define <lambda-rule-single-body-line>
   (pattern-rule
    `(lambda ,(? 'args) ,(? 'body))
    (lambda (args body)
@@ -51,6 +49,20 @@
         (lambda (s) `(lambda-simple ,s ,parsed-body)) ; simple
         (lambda (s opt) `(lambda-opt ,s ,@opt ,parsed-body)) ; opt
         (lambda (var) `(lambda-var ,var ,parsed-body)) ; var
+        )))))
+
+(define <lambda-rule>
+  (pattern-rule
+   `(lambda ,(? 'args) ,(? 'body) . ,(? 'rest-body))
+   (lambda (args body . rest-body)
+     (display rest-body)
+     (let ((parsed-body (parse body))
+           (parsed-rest-body (map parse (car rest-body))))
+       (identify-lambda
+        args
+        (lambda (s) `(lambda-simple ,s ,parsed-body ,@parsed-rest-body)) ; simple
+        (lambda (s opt) `(lambda-opt ,s ,@opt ,parsed-body ,@parsed-rest-body)) ; opt
+        (lambda (var) `(lambda-var ,var ,parsed-body ,@parsed-rest-body)) ; var
         )))))
 
 

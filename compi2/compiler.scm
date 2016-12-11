@@ -728,6 +728,7 @@
           <disj-rule-no-args>
           <disj-rule-single-arg>
           <disj-rule>
+          <lambda-rule-single-body-line>
           <lambda-rule>
           )
          ))
