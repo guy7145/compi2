@@ -726,6 +726,8 @@
    (lambda (test dit dif)
      `(if3 ,(run test) ,(run dit) ,(run dif)))))
 
+(load "guy-rules.scm")
+(load "max-rules.scm")
 
 (define tag-parse
   (let ((run
