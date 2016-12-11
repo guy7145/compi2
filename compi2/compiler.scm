@@ -725,14 +725,16 @@
           <var-rule>
           <if2-rule>
           <if3-rule>
+          <disj-rule-no-args>
+          <disj-rule-single-arg>
+          <disj-rule>
+          <lambda-rule>
           )
          ))
     (lambda (sexpr)
       (run sexpr *error-continuation*))))
 
 (define parse tag-parse)
-
-
 
 
 
