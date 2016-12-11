@@ -850,6 +850,9 @@
 (display "****************")(newline)
 (display (parse '(lambda (a b c d e f Symbol1) E1 E2 E3 E4 (f1 a))))
 
+(display "****************")(newline)
+(display (parse '(begin E1 E2 E3 E4 (f1 a))))
+
 
 
 

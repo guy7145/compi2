@@ -49,9 +49,19 @@
                  (lambda (var) (ret-opt `(,(car args)) var))) ; var
                  ))))
 
+(define list-is-duplicative?
+  (lambda (s)
+    (cond ((null? s) #f)
+          ((member (car s) (cdr s)) #t)
+          (else (list-is-duplicative? (cdr s))))))
+
+(define args-not-duplicative?
+  (lambda (args)
+    (not (and (list? args) (list-is-duplicative? args)))))
+
 (define <lambda-rule-single-body-line>
   (pattern-rule
-   `(lambda ,(? 'args) ,(? 'body))
+   `(lambda ,(? 'args args-not-duplicative?) ,(? 'body))
    (lambda (args body)
      (let ((parsed-body (parse body)))
        (identify-lambda
@@ -63,7 +73,7 @@
 
 (define <lambda-rule>
   (pattern-rule
-   `(lambda ,(? 'args) ,(? 'body) . ,(? 'rest-body))
+   `(lambda ,(? 'args args-not-duplicative?) ,(? 'body) . ,(? 'rest-body))
    (lambda (args body . rest-body)
      (let* ((begin-body (beginify (cons body rest-body)))
             (parsed-body (parse begin-body)))
