@@ -660,3 +660,97 @@
          <Unquoted>
          <UnquoteAndSpliced>
          )))
+
+;*************************************************************************************************
+
+(load "pattern-matcher.scm")
+
+;; __________________________________________________________________________________________
+;; __predicats and constants ________________________________________________________________
+;; __________________________________________________________________________________________
+
+(define *void-object* (void))
+
+(define *reserved-words*
+  '(and begin cond define do else if lambda let let* letrec or quasiquote unquote unquote-splicing quote set!))
+
+(define *error-text* "error! (change to 'ERROR'...)") ;"ERROR!")
+
+(define *error-continuation*
+  (lambda () *error-text*))
+
+(define reserved-word?
+  (lambda (x)
+    (member x *reserved-words*)))
+
+(define var?
+  (lambda (x)
+    (and (symbol? x)
+         (not (reserved-word? x)))))
+
+
+(define simple-const?
+  (let ((preds (list boolean? char? number? string?)))
+    (lambda (e) 
+      (ormap (lambda (p?) (p? e)) preds))))
+
+
+;; __________________________________________________________________________________________
+;; __rules __________________________________________________________________________________ 
+;; __________________________________________________________________________________________
+
+(define <const-rule>
+  (pattern-rule
+   (? 'c simple-const?)
+   (lambda (c) `(const ,c))))
+
+(define <quote-rule>
+  (pattern-rule
+   `(quote ,(? 'c))
+   (lambda (c) `(const ,c))))
+
+(define <var-rule>
+  (pattern-rule
+   (? 'var var?)
+   (lambda (var) `(var ,var))))
+
+(define <if2-rule>
+  (pattern-rule
+   `(if ,(? 'test) ,(? 'dit))
+   (lambda (test dit)
+     `(if3 ,(run test) ,(run dit) `(const ,*void-object*)))))
+
+(define <if3-rule>
+  (pattern-rule
+   `(if ,(? 'test) ,(? 'dit) ,(? 'dif))
+   (lambda (test dit dif)
+     `(if3 ,(run test) ,(run dit) ,(run dif)))))
+
+
+(define tag-parse
+  (let ((run
+         (compose-patterns
+          <const-rule>
+          <quote-rule>
+          <var-rule>
+          <if2-rule>
+          <if3-rule>
+          )
+         ))
+    (lambda (sexpr)
+      (run sexpr *error-continuation*))))
+
+(define parse tag-parse)
+
+
+
+
+
+
+
+
+
+
+
+
+
