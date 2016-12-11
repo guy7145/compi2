@@ -840,6 +840,9 @@
           <lambda-rule-single-body-line>
           <lambda-rule>
           <seq-rule-explicit>
+          
+          <assignment-rule>
+          <application-rule>
           )
          ))
     (lambda (sexpr)
