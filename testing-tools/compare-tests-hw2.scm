@@ -3,12 +3,12 @@
 (define my-parse-func parse)
 
 (load "tagparser.so")
-(define staff-parse-func parse)
-
 (define try-catch
   (lambda (try-thunk catch-thunk)
     (guard (c (else (catch-thunk)))
      (try-thunk))))
+(define staff-parse-func parse)
+
 
 (define testVSstaff
 	(lambda (input)
@@ -19,7 +19,7 @@
 			(cond ((equal? my-res staff-res)
 				(display (format "\033[1;32m Success! ☺ \033[0m \n")) #t)
 				(else 
-				(display (format "\033[1;31m Failed! ☹\033[0m , Expected: ~s, Actual: ~s \n" staff-res my-res)) #f))
+				(display (format "\033[1;31m Failed! ☹\033[0m ,\nExpected: ~s,\nActual: ~s\n\n" staff-res my-res)) #f))
 			)))
 			
 (define runTests
