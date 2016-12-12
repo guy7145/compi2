@@ -796,7 +796,6 @@
     (and (symbol? x)
          (not-reserved-word? x))))
 
-
 (define simple-const?
   (let ((preds (list boolean? char? number? string?)))
     (lambda (e)
@@ -807,6 +806,12 @@
     (cond ((null? x) '())
           ((pair? x) x)
           (else `(,x)))))
+
+(define list-is-duplicative?
+  (lambda (s)
+    (cond ((null? s) #f)
+          ((member (car s) (cdr s)) #t)
+          (else (list-is-duplicative? (cdr s))))))
 
 
 #| .:: basic rules ::. ______________________________________________________________________________________________________________________________________________________|#
@@ -962,12 +967,6 @@
                  (lambda (s . opt) (ret-opt `(,(car args) ,@s) (car opt))) ; opt
                  (lambda (var) (ret-opt `(,(car args)) `(,var)))) ; var
            ))))
-
-(define list-is-duplicative?
-  (lambda (s)
-    (cond ((null? s) #f)
-          ((member (car s) (cdr s)) #t)
-          (else (list-is-duplicative? (cdr s))))))
 
 (define args-not-duplicative?
   (lambda (args)

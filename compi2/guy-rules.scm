@@ -1,19 +1,4 @@
 
-
-(define Y
-  (lambda (X)
-    ((lambda (f) (X (lambda (x) ((f f) x))))
-     (lambda (f) (X (lambda (x) ((f f) x)))))))
-
-(define fact
-  (Y
-   (lambda (arg-func)
-     (lambda (num)
-       (if (<= num 0)
-           1
-           (* num (arg-func (- num 1))))))))
-
-
 #|(define id (lambda (x) x))
 (define <begin-rule>
   (let ((unwrapper (pattern-rule `(seq ,(? 'body)) id)))
