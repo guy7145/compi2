@@ -661,12 +661,13 @@
          <UnquoteAndSpliced>
          )))
 
-                                        ;*************************************************************************************************
+;*************************************************************************************************
 
 (load "pattern-matcher.scm")
 
 
-                                        ; ________________________________________________________________________________________________
+#| .:: quasi-quote rule ::. ______________________________________________________________________________________________________________________________________________________|#
+
 ;;; A naive, one-level quasiquote implementation + optimizations
 ;;;
 ;;; Programmer: Mayer Goldberg, 2016
@@ -768,13 +769,9 @@
     (lambda (e)
       (optimize-qq-expansion
        (expand-qq e)))))
-                                        ; ________________________________________________________________________________________________
 
 
-
-                                        ; ________________________________________________________________________________________________
-;; __predicats and constants _____________________________________________________________________
-; ________________________________________________________________________________________________
+#| .:: tools rules ::. ______________________________________________________________________________________________________________________________________________________|#
 
 (define *void-object* (void))
 
@@ -812,9 +809,7 @@
           (else `(,x)))))
 
 
-                                        ; ________________________________________________________________________________________________
-;; __rules _______________________________________________________________________________________
-; ________________________________________________________________________________________________
+#| .:: basic rules ::. ______________________________________________________________________________________________________________________________________________________|#
 
 (define <void-rule>
   (pattern-rule
@@ -835,6 +830,170 @@
   (pattern-rule
    (? 'var var?)
    (lambda (var) `(var ,var))))
+
+#| .:: assignment rule ::. ______________________________________________________________________________________________________________________________________________________|#
+
+(define <assignment-rule>
+  (pattern-rule
+   `(set! ,(? 'var var?) ,(? 'val))
+   (lambda (var val)
+     `(set ,(parse var) ,(parse val)))))
+
+#| .:: application rule ::. ______________________________________________________________________________________________________________________________________________________|#
+
+(define <application-rule>
+  (pattern-rule
+   `(,(? 'foo not-reserved-word?) . ,(? 'args))
+   (lambda (foo . args)
+     `(applic ,(parse foo) (,@(map parse (car args)))))))
+
+
+#| .:: if rules ::. ______________________________________________________________________________________________________________________________________________________|#
+
+(define <if2-rule>
+  (pattern-rule
+   `(if ,(? 'test) ,(? 'dit))
+   (lambda (test dit)
+     `(if3 ,(parse test) ,(parse dit) (const ,*void-object*)))))
+
+(define <if3-rule>
+  (pattern-rule
+   `(if ,(? 'test) ,(? 'dit) ,(? 'dif))
+   (lambda (test dit dif)
+     `(if3 ,(parse test) ,(parse dit) ,(parse dif)))))
+
+#| .:: disjunction rules ::. ______________________________________________________________________________________________________________________________________________________|#
+
+(define <disj-rule-no-args>
+  (pattern-rule
+   `(or)
+   (lambda () `(const ,#f))))
+
+(define <disj-rule-single-arg>
+  (pattern-rule
+   `(or ,(? 'expr))
+   (lambda (expr) (parse expr) )))
+
+(define <disj-rule-several-args>
+  (pattern-rule
+   `(or ,(? 'expr) . ,(? 'rest-exprs))
+   (lambda (expr . rest-exprs)
+     (let ((rest-exprs-unwrapped (car rest-exprs)))
+       `(or (,(parse expr) ,@(map parse rest-exprs-unwrapped)))))))
+
+(define <disj-rule>
+  (compose-patterns
+   <disj-rule-no-args>
+   <disj-rule-single-arg>
+   <disj-rule-several-args>
+   ))
+
+#| .:: and rules ::. ______________________________________________________________________________________________________________________________________________________|#
+
+(define <and-rule-no-args>
+  (pattern-rule
+   `(and)
+   (lambda () `(const ,#t))))
+
+(define <and-rule-with-args>
+  (pattern-rule
+   `(and ,(? 'expr) . ,(? 'rest-exprs))
+   (lambda (expr . rest-exprs)
+     (letrec ((rest-exprs-unwrapped (car rest-exprs))
+              (and->if (lambda (lst)
+                         (if (null? (cdr lst))
+                             (car lst)
+                             (list 'if
+                                   (car lst)
+                                   (and->if (cdr lst))
+                                   #f)))))
+       (parse (and->if `(,expr ,@(car rest-exprs))))))))
+
+(define <and-rule>
+  (compose-patterns
+   <and-rule-no-args>
+   <and-rule-with-args>))
+
+#| .:: define rules ::. ______________________________________________________________________________________________________________________________________________________|#
+
+(define <define-rule>
+  (pattern-rule
+   `(define ,(? 'var) ,(? 'val) . ,(? 'val-rest))
+   (lambda (var val . val-rest)
+     (if (null? val-rest)
+         `(def ,(parse var) ,(parse val))
+         `(def ,(parse var) ,(parse (beginify (cons val (car val-rest)))))))))
+
+(define merge-bodies
+  (lambda (body rest-body)
+    (if (null? rest-body)
+        body
+        (beginify (cons body (car rest-body))))))
+
+(define <define-mit-rule-var>
+  (pattern-rule 
+   `(define (,(? 'object) . ,(? 'var-arg)) ,(? 'body) . ,(? 'rest-body))
+   (lambda (object var-arg body . rest-body)
+     (let ((body (merge-bodies body rest-body)))
+       `(def ,(parse object) ,(parse `(lambda ,var-arg ,body)))
+   ))))
+
+(define <define-mit-rule-simple-opt>
+  (pattern-rule
+   `(define (,(? 'object) ,(? 'args)) ,(? 'body))
+   (lambda (object args body . rest-body) 
+       `(def ,(parse object) ,(parse `(lambda ,args ,body))))))
+
+(define <define-mit-rule>
+  (compose-patterns
+   <define-mit-rule-var>
+   <define-mit-rule-simple-opt>
+   ))
+
+#| .:: lambda rules ::. ______________________________________________________________________________________________________________________________________________________|#
+
+(define identify-lambda
+  (lambda (args ret-simple ret-opt ret-var)
+    (cond ((null? args) (ret-simple '()))
+          ((symbol? args) (ret-var args))
+          (else (identify-lambda
+                 (cdr args)
+                 (lambda (s) (ret-simple `(,(car args) ,@s))) ;simple
+                 (lambda (s . opt) (ret-opt `(,(car args) ,@s) (car opt))) ; opt
+                 (lambda (var) (ret-opt `(,(car args)) `(,var)))) ; var
+           ))))
+
+(define list-is-duplicative?
+  (lambda (s)
+    (cond ((null? s) #f)
+          ((member (car s) (cdr s)) #t)
+          (else (list-is-duplicative? (cdr s))))))
+
+(define args-not-duplicative?
+  (lambda (args)
+    (not (and (list? args) (list-is-duplicative? args)))))
+
+(define <lambda-rule>
+  (pattern-rule
+   `(lambda ,(? 'args args-not-duplicative?) ,(? 'body) . ,(? 'rest-body))
+   (lambda (args body . rest-body)
+     (let ((rest-body (car rest-body)))
+
+       (let ((body (if (null? rest-body)
+                       body
+                       (beginify (cons body rest-body)))))
+
+         (let ((parsed-body (parse body)))
+
+           (identify-lambda
+            args
+            (lambda (s) `(lambda-simple ,s ,parsed-body)) ; simple
+            (lambda (s opt) `(lambda-opt ,s ,@opt ,parsed-body)) ; opt
+            (lambda (var) `(lambda-var ,var ,parsed-body)) ; var
+            )))))))
+
+
+#| .:: PARSING INTERFACE ::. ______________________________________________________________________________________________________________________________________________________|#
 
 (load "guy-rules.scm")
 (load "max-rules.scm")
@@ -875,10 +1034,7 @@
 (display "****************")(newline)
                             (display (parse '(define (foo x y . z) (if x y z) #t)))
 
-
-
-
-
+(display (fact 5))
 
 
 
