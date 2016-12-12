@@ -53,19 +53,21 @@
     (cond ((null? s) '())
           ((list? (car s)) (append (car s) (flatten-list (cdr s))))
           (else (cons (car s) (flatten-list (cdr s)))))))
-                                        ;(fold-right (lambda (a b) (display (format "\033[1;34m a: ~s ; b: ~s ; ;\033[0m \n" a b)) (append a b)) s '())))
 
 (define <begin-rule-several-statements>
   (let ((parse-unwrap
          (lambda (e)
            (let ((e-tagged (parse e)))
-             (if (equal? 'seq (get-tag e-tagged)) (flatten-list (get-data e-tagged)) e-tagged)))))
+             (if (equal? 'seq (get-tag e-tagged)) (get-data (flatten-list e-tagged)) e-tagged)))))
     (pattern-rule
      `(begin ,(? 'first-statement) . ,(? 'rest-statements))
      (lambda (first-statement . rest-statements)
        (let ((body (cons first-statement (car rest-statements))))
-         `(seq ,(map parse-unwrap body)))))))
+         `(seq ,(fold-right (lambda (a b) (append ((flatten-list a) (flatten-list b)))) (map parse-unwrap body) '())))))))
+
 ; (lambda (e) (<begin-rule-hidden> e (lambda () (parse e))))
+
+
 (define <seq-rule-explicit>
   (compose-patterns
    <begin-rule-empty>
