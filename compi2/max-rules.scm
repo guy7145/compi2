@@ -6,7 +6,8 @@
        (parse `((lambda () ,body)))))))
 
 (define <let-rule>
-  (pattern-rule
+  (lambda (e fail-cont)
+    ((pattern-rule
    `(let (,(? 'args) . ,(? 'rest)) ,(? 'body) . ,(? 'rest))
    (lambda (args-head rest body . rest-body)
      (let ((args (if (null? rest)
@@ -15,7 +16,9 @@
 	   (body (if (null? rest-body)
 		     `(,body)
 		     `(,body ,@(car rest-body)))))
-       (parse `((lambda ,(map car args) ,@body) ,@(map cadr args)))))))
+       (if (list-is-duplicative? (map car args))
+	   (fail-cont)
+	   (parse `((lambda ,(map car args) ,@body) ,@(map cadr args))))))) e fail-cont)))
 
 (define <let*-no-args-rule>
   (pattern-rule
@@ -50,7 +53,8 @@
        (parse `((lambda () ((lambda () ,body)))))))))
 
 (define <letrec-rule>
-  (pattern-rule
+  (lambda (e fail-cont)
+    ((pattern-rule
    `(letrec (,(? 'args) . ,(? 'rest)) ,(? 'body) . ,(? 'rest))
    (lambda (args-head rest head-body . rest-body)
      (letrec ((args (if (null? rest)
@@ -63,8 +67,9 @@
 			   (if (null? (cdr lst))
 			       `((set! ,(caar lst) ,@(cdar lst)))
 			       `((set! ,(caar lst) ,@(cdar lst)) ,@(args->set (cdr lst)))))))
-       (display (append (args->set args) body)) (newline)
-       (parse `((lambda ,(map car args) ,@(append (args->set args) `(((lambda () ,@body))))) ,@(map (lambda (x) #f) args)))))))
+       (if (list-is-duplicative? (map car args))
+	   (fail-cont)
+	   (parse `((lambda ,(map car args) ,@(append (args->set args) `(((lambda () ,@body))))) ,@(map (lambda (x) #f) args))))))) e fail-cont)))
 
 (define <let-rules>
   (compose-patterns
