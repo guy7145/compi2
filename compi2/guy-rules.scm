@@ -69,16 +69,16 @@
        (flatten-list (map (lambda (e) (<begin-rule-hidden> e (lambda () `(,(parse e))))) body))))))
 
 (define <begin-rule-several-statements>
-#|  (let ((parse-unwrap
+  (let ((parse-unwrap
          (lambda (e)
            (let ((e-tagged (parse e)))
-             (if (equal? 'seq (get-tag e-tagged)) (car (get-data e-tagged)) e-tagged)))))|#
+             (if (equal? 'seq (get-tag e-tagged)) (car (get-data e-tagged)) e-tagged)))))
     (pattern-rule
      `(begin ,(? 'first-statement) . ,(? 'rest-statements))
      (lambda (first-statement . rest-statements)
        (let ((body (cons first-statement (car rest-statements))))
-         `(seq ,(map (lambda (e) (<begin-rule-hidden> e (lambda () (parse e)))) body))))));)
-
+         `(seq ,(map parse-unwrap body)))))))
+; (lambda (e) (<begin-rule-hidden> e (lambda () (parse e))))
 (define <seq-rule-explicit>
   (compose-patterns
    <begin-rule-empty>
