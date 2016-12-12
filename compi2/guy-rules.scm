@@ -14,7 +14,7 @@
            (* num (arg-func (- num 1))))))))
 
 
-(define id (lambda (x) x))
+#|(define id (lambda (x) x))
 (define <begin-rule>
   (let ((unwrapper (pattern-rule `(seq ,(? 'body)) id)))
     (Y
@@ -34,7 +34,16 @@
                   (parse e))))
            (display sexpr)(newline)
            (unwrapper sexpr cont)))))))
+|#
+(define get-tag car)
+(define get-data cdr)
 
+(define flatten-list
+  (lambda (s)
+    (cond ((null? s) '())
+          ((list? (car s)) (append (car s) (flatten-list (cdr s))))
+          (else (cons (car s) (flatten-list (cdr s)))))))
+                                        ;(fold-right (lambda (a b) (display (format "\033[1;34m a: ~s ; b: ~s ; ;\033[0m \n" a b)) (append a b)) s '())))
 
 (define beginify
   (lambda (s)
@@ -52,18 +61,29 @@
    `(begin ,(? 'body))
    (lambda (body) (parse body))))
 
-(define <begin-rule-several-statements>
+(define <begin-rule-hidden>
   (pattern-rule
    `(begin ,(? 'first-statement) . ,(? 'rest-statements))
    (lambda (first-statement . rest-statements)
      (let ((body (cons first-statement (car rest-statements))))
-       `(seq ,(map parse body))))))
+       (flatten-list (map (lambda (e) (<begin-rule-hidden> e (lambda () `(,(parse e))))) body))))))
+
+(define <begin-rule-several-statements>
+#|  (let ((parse-unwrap
+         (lambda (e)
+           (let ((e-tagged (parse e)))
+             (if (equal? 'seq (get-tag e-tagged)) (car (get-data e-tagged)) e-tagged)))))|#
+    (pattern-rule
+     `(begin ,(? 'first-statement) . ,(? 'rest-statements))
+     (lambda (first-statement . rest-statements)
+       (let ((body (cons first-statement (car rest-statements))))
+         `(seq ,(map (lambda (e) (<begin-rule-hidden> e (lambda () (parse e)))) body))))));)
 
 (define <seq-rule-explicit>
   (compose-patterns
    <begin-rule-empty>
-   <begin-rule-single-statement>
    <begin-rule-several-statements>
+   <begin-rule-single-statement>
    ))
 
 

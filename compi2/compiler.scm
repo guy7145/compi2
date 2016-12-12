@@ -1031,11 +1031,6 @@
 
 (define parse tag-parse)
 
-(display "****************")(newline)
-                            (display (parse '(define (foo x y . z) (if x y z) #t)))
-
-(display (fact 5))
-
 
 
 

@@ -13,7 +13,7 @@
 (define testVSstaff
   (lambda (input)
     (let* ((my-res (try-catch (lambda () (my-parse-func input)) (lambda () "Exception thrown")))
-           (staff-res (try-catch (lambda () (staff-parse-func input)) (lambda () (display "\033[1;34m !!Negative Test!! \033[0m ") "ERROR"))))
+           (staff-res (try-catch (lambda () (staff-parse-func input)) (lambda () "ERROR"))))
       (display (format "~s:" input))
                                         ;(display my-res)
       (cond ((equal? my-res staff-res)
