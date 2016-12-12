@@ -23,12 +23,7 @@
 (define get-tag car)
 (define get-data cdr)
 
-(define flatten-list
-  (lambda (s)
-    (cond ((null? s) '())
-          ((list? (car s)) (append (car s) (flatten-list (cdr s))))
-          (else (cons (car s) (flatten-list (cdr s)))))))
-                                        ;(fold-right (lambda (a b) (display (format "\033[1;34m a: ~s ; b: ~s ; ;\033[0m \n" a b)) (append a b)) s '())))
+
 
 (define beginify
   (lambda (s)
@@ -46,18 +41,25 @@
    `(begin ,(? 'body))
    (lambda (body) (parse body))))
 
-(define <begin-rule-hidden>
+#|(define <begin-rule-hidden>
   (pattern-rule
    `(begin ,(? 'first-statement) . ,(? 'rest-statements))
    (lambda (first-statement . rest-statements)
      (let ((body (cons first-statement (car rest-statements))))
-       (flatten-list (map (lambda (e) (<begin-rule-hidden> e (lambda () `(,(parse e))))) body))))))
+       (flatten-list (map (lambda (e) (<begin-rule-hidden> e (lambda () `(,(parse e))))) body))))))|#
+
+(define flatten-list
+  (lambda (s)
+    (cond ((null? s) '())
+          ((list? (car s)) (append (car s) (flatten-list (cdr s))))
+          (else (cons (car s) (flatten-list (cdr s)))))))
+                                        ;(fold-right (lambda (a b) (display (format "\033[1;34m a: ~s ; b: ~s ; ;\033[0m \n" a b)) (append a b)) s '())))
 
 (define <begin-rule-several-statements>
   (let ((parse-unwrap
          (lambda (e)
            (let ((e-tagged (parse e)))
-             (if (equal? 'seq (get-tag e-tagged)) (car (get-data e-tagged)) e-tagged)))))
+             (if (equal? 'seq (get-tag e-tagged)) (flatten-list (get-data e-tagged)) e-tagged)))))
     (pattern-rule
      `(begin ,(? 'first-statement) . ,(? 'rest-statements))
      (lambda (first-statement . rest-statements)
@@ -67,8 +69,8 @@
 (define <seq-rule-explicit>
   (compose-patterns
    <begin-rule-empty>
-   <begin-rule-several-statements>
    <begin-rule-single-statement>
+   <begin-rule-several-statements>
    ))
 
 
@@ -76,6 +78,34 @@
        (display "\033[1;34m first: \033[0m ")(display first-statement)(display "\033[1;34m ;\033[0m ")(newline)
        (display "\033[1;34m rest: \033[0m ")(display rest-statements)(display "\033[1;34m ;\033[0m ")(newline)
        (display "\033[1;34m body: \033[0m ")(display body)(display "\033[1;34m ;\033[0m ")(newline)|#
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

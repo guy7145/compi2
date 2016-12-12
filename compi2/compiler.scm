@@ -1039,6 +1039,8 @@
           <and-rule-no-args>
           <and-rule>
           <cond-rule>
+          
+          <let-rules>
           )
          ))
     (lambda (sexpr)
