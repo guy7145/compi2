@@ -665,112 +665,6 @@
 
 (load "pattern-matcher.scm")
 
-
-#| .:: quasi-quote rule ::. ______________________________________________________________________________________________________________________________________________________|#
-
-;;; A naive, one-level quasiquote implementation + optimizations
-;;;
-;;; Programmer: Mayer Goldberg, 2016
-(define ^quote?
-  (lambda (tag)
-    (lambda (e)
-      (and (pair? e)
-           (eq? (car e) tag)
-           (pair? (cdr e))
-           (null? (cddr e))))))
-
-(define quote? (^quote? 'quote))
-(define unquote? (^quote? 'unquote))
-(define unquote-splicing? (^quote? 'unquote-splicing))
-
-(define const?
-  (let ((simple-sexprs-predicates
-         (list boolean? char? number? string?)))
-    (lambda (e)
-      (or (ormap (lambda (p?) (p? e))
-           simple-sexprs-predicates)
-          (quote? e)))))
-
-(define quotify
-  (lambda (e)
-    (if (or (null? e)
-            (pair? e)
-            (symbol? e)
-            (vector? e))
-        `',e
-        e)))
-
-(define unquotify
-  (lambda (e)
-    (if (quote? e)
-        (cadr e)
-        e)))
-
-(define const-pair?
-  (lambda (e)
-    (and (quote? e)
-         (pair? (cadr e)))))
-
-(define expand-qq
-  (letrec ((expand-qq
-            (lambda (e)
-              (cond ((unquote? e) (cadr e))
-                    ((unquote-splicing? e)
-                     (error 'expand-qq
-                            "unquote-splicing here makes no sense!"))
-                    ((pair? e)
-                     (let ((a (car e))
-                           (b (cdr e)))
-                       (cond ((unquote-splicing? a)
-                              `(append ,(cadr a) ,(expand-qq b)))
-                             ((unquote-splicing? b)
-                              `(cons ,(expand-qq a) ,(cadr b)))
-                             (else `(cons ,(expand-qq a) ,(expand-qq b))))))
-                    ((vector? e) `(list->vector ,(expand-qq (vector->list e))))
-                    ((or (null? e) (symbol? e)) `',e)
-                    (else e))))
-           (optimize-qq-expansion (lambda (e) (optimizer e (lambda () e))))
-           (optimizer
-            (compose-patterns
-             (pattern-rule
-              `(append ,(? 'e) '())
-              (lambda (e) (optimize-qq-expansion e)))
-             (pattern-rule
-              `(append ,(? 'c1 const-pair?) (cons ,(? 'c2 const?) ,(? 'e)))
-              (lambda (c1 c2 e)
-                (let ((c (quotify `(,@(unquotify c1) ,(unquotify c2))))
-                      (e (optimize-qq-expansion e)))
-                  (optimize-qq-expansion `(append ,c ,e)))))
-             (pattern-rule
-              `(append ,(? 'c1 const-pair?) ,(? 'c2 const-pair?))
-              (lambda (c1 c2)
-                (let ((c (quotify (append (unquotify c1) (unquotify c2)))))
-                  c)))
-             (pattern-rule
-              `(append ,(? 'e1) ,(? 'e2))
-              (lambda (e1 e2)
-                (let ((e1 (optimize-qq-expansion e1))
-                      (e2 (optimize-qq-expansion e2)))
-                  `(append ,e1 ,e2))))
-             (pattern-rule
-              `(cons ,(? 'c1 const?) (cons ,(? 'c2 const?) ,(? 'e)))
-              (lambda (c1 c2 e)
-                (let ((c (quotify (list (unquotify c1) (unquotify c2))))
-                      (e (optimize-qq-expansion e)))
-                  (optimize-qq-expansion `(append ,c ,e)))))
-             (pattern-rule
-              `(cons ,(? 'e1) ,(? 'e2))
-              (lambda (e1 e2)
-                (let ((e1 (optimize-qq-expansion e1))
-                      (e2 (optimize-qq-expansion e2)))
-                  (if (and (const? e1) (const? e2))
-                      (quotify (cons (unquotify e1) (unquotify e2)))
-                      `(cons ,e1 ,e2))))))))
-    (lambda (e)
-      (optimize-qq-expansion
-       (expand-qq e)))))
-
-
 #| .:: tools rules ::. ______________________________________________________________________________________________________________________________________________________|#
 
 (define *void-object* (void))
@@ -813,6 +707,11 @@
           ((member (car s) (cdr s)) #t)
           (else (list-is-duplicative? (cdr s))))))
 
+(define beginify
+  (lambda (s)
+    (cond ((null? s) *void-object*)
+          ((null? (cdr s)) (car s))
+          (else `(begin ,@s)))))
 
 #| .:: basic rules ::. ______________________________________________________________________________________________________________________________________________________|#
 
@@ -971,6 +870,46 @@
    <define-mit-rule-simple-opt>
    ))
 
+
+#| .:: begin rules ::. ______________________________________________________________________________________________________________________________________________________|#
+
+(define get-tag car)
+(define get-data cdr)
+
+(define <begin-rule-empty>
+  (pattern-rule
+   `(begin)
+   (lambda () `(const ,*void-object*))))
+
+(define <begin-rule-single-statement>
+  (pattern-rule
+   `(begin ,(? 'body))
+   (lambda (body) (parse body))))
+
+(define flatten-list
+  (lambda (s)
+    (cond ((null? s) '())
+          ((list? (car s)) (append (car s) (flatten-list (cdr s))))
+          (else (cons (car s) (flatten-list (cdr s)))))))
+
+(define <begin-rule-several-statements>
+  (let ((parse-unwrap
+         (lambda (e)
+           (let ((e-tagged (parse e)))
+             (if (equal? 'seq (get-tag e-tagged)) (cadr e-tagged) (list e-tagged))))))
+    (pattern-rule
+     `(begin ,(? 'first-statement) . ,(? 'rest-statements))
+     (lambda (first-statement . rest-statements)
+       (let ((body (cons first-statement (car rest-statements))))
+         `(seq ,(flatten-list (map parse-unwrap body))))))))
+
+(define <seq-rule-explicit>
+  (compose-patterns
+   <begin-rule-empty>
+   <begin-rule-single-statement>
+   <begin-rule-several-statements>
+   ))
+
 #| .:: lambda rules ::. ______________________________________________________________________________________________________________________________________________________|#
 
 (define identify-lambda
@@ -1007,15 +946,221 @@
             (lambda (var) `(lambda-var ,var ,parsed-body)) ; var
             )))))))
 
+#| .:: let rule ::. ______________________________________________________________________________________________________________________________________________________|#
+
+(define <let-no-args-rule>
+  (pattern-rule
+   `(let () ,(? 'body) . ,(? 'rest))
+   (lambda (body . rest-body)
+     (let ((body (merge-bodies body rest-body)))
+       (parse `((lambda () ,body)))))))
+
+(define <let-rule>
+  (lambda (e fail-cont)
+    ((pattern-rule
+   `(let (,(? 'args) . ,(? 'rest)) ,(? 'body) . ,(? 'rest))
+   (lambda (args-head rest body . rest-body)
+     (let ((args (if (null? rest)
+		     `(,args-head)
+		     `(,args-head ,@rest)))
+	   (body (if (null? rest-body)
+		     `(,body)
+		     `(,body ,@(car rest-body)))))
+       (if (list-is-duplicative? (map car args))
+	   (fail-cont)
+	   (parse `((lambda ,(map car args) ,@body) ,@(map cadr args))))))) e fail-cont)))
+
+(define <let*-no-args-rule>
+  (pattern-rule
+   `(let* () ,(? 'body) . ,(? 'rest))
+   (lambda (body . rest-body)
+     (let ((body (merge-bodies body rest-body)))
+       (parse `((lambda () ,body)))))))
+
+(define <let*-rule>
+  (pattern-rule
+   `(let* (,(? 'args) . ,(? 'rest)) ,(? 'body) . ,(? 'rest))
+   (lambda (args-head rest head-body . rest-body)
+     (letrec ((args (if (null? rest)
+			`(,args-head)
+			`(,args-head ,@rest)))
+	      (body (if (null? rest-body)
+			`(,head-body)
+			`(,head-body ,@(car rest-body))))
+	      (let*->encapsulated-lambdas (lambda (args body)
+			       (if (null? args)
+				   body
+				   `(((lambda (,(caar args))
+					,@(let*->encapsulated-lambdas (cdr args) body))
+				      ,@(cdar args)))))))
+       (parse (car (let*->encapsulated-lambdas args body)))))))
+
+(define <letrec-no-args-rule>
+  (pattern-rule
+   `(letrec () ,(? 'body) . ,(? 'rest))
+   (lambda (body . rest-body)
+     (let ((body (merge-bodies body rest-body)))
+       (parse `((lambda () ((lambda () ,body)))))))))
+
+(define <letrec-rule>
+  (lambda (e fail-cont)
+    ((pattern-rule
+   `(letrec (,(? 'args) . ,(? 'rest)) ,(? 'body) . ,(? 'rest))
+   (lambda (args-head rest head-body . rest-body)
+     (letrec ((args (if (null? rest)
+			`(,args-head)
+			`(,args-head ,@rest)))
+	      (body (if (null? rest-body)
+			`(,head-body)
+			`(,head-body ,@(car rest-body))))
+	      (args->set (lambda (lst)
+			   (if (null? (cdr lst))
+			       `((set! ,(caar lst) ,@(cdar lst)))
+			       `((set! ,(caar lst) ,@(cdar lst)) ,@(args->set (cdr lst)))))))
+       (if (list-is-duplicative? (map car args))
+	   (fail-cont)
+	   (parse `((lambda ,(map car args) ,@(append (args->set args) `(((lambda () ,@body))))) ,@(map (lambda (x) #f) args))))))) e fail-cont)))
+
+(define <let-rules>
+  (compose-patterns
+   <let-no-args-rule>
+   <let-rule>
+   <let*-no-args-rule>
+   <let*-rule>
+   <letrec-no-args-rule>
+   <letrec-rule>
+   ))
+
+
+#| .:: qq rule ::. ______________________________________________________________________________________________________________________________________________________|#
+
+;;; qq.scm
+;;; A naive, one-level quasiquote implementation + optimizations
+;;;
+;;; Programmer: Mayer Goldberg, 2016
+
+
+
+;;;
+
+(define ^quote?
+  (lambda (tag)
+    (lambda (e)
+      (and (pair? e)
+	   (eq? (car e) tag)
+	   (pair? (cdr e))
+	   (null? (cddr e))))))
+
+(define quote? (^quote? 'quote))
+(define unquote? (^quote? 'unquote))
+(define unquote-splicing? (^quote? 'unquote-splicing))
+
+(define const?
+  (let ((simple-sexprs-predicates
+	 (list boolean? char? number? string?)))
+    (lambda (e)
+      (or (ormap (lambda (p?) (p? e))
+		 simple-sexprs-predicates)
+	  (quote? e)))))
+
+(define quotify
+  (lambda (e)
+    (if (or (null? e)
+	    (pair? e)
+	    (symbol? e)
+	    (vector? e))
+	`',e
+	e)))
+
+(define unquotify
+  (lambda (e)
+    (if (quote? e)
+	(cadr e)
+	e)))
+
+(define const-pair?
+  (lambda (e)
+    (and (quote? e)
+	 (pair? (cadr e)))))
+
+(define expand-qq
+  (letrec ((expand-qq
+	    (lambda (e)
+	      (cond ((unquote? e) (cadr e))
+		    ((unquote-splicing? e)
+		     (error 'expand-qq
+		       "unquote-splicing here makes no sense!"))
+		    ((pair? e)
+		     (let ((a (car e))
+			   (b (cdr e)))
+		       (cond ((unquote-splicing? a)
+			      `(append ,(cadr a) ,(expand-qq b)))
+			     ((unquote-splicing? b)
+			      `(cons ,(expand-qq a) ,(cadr b)))
+			     (else `(cons ,(expand-qq a) ,(expand-qq b))))))
+		    ((vector? e) `(list->vector ,(expand-qq (vector->list e))))
+		    ((or (null? e) (symbol? e)) `',e)
+		    (else e))))
+	   (optimize-qq-expansion (lambda (e) (optimizer e (lambda () e))))
+	   (optimizer
+	    (compose-patterns
+	     (pattern-rule
+	      `(append ,(? 'e) '())
+	      (lambda (e) (optimize-qq-expansion e)))
+	     (pattern-rule
+	      `(append ,(? 'c1 const-pair?) (cons ,(? 'c2 const?) ,(? 'e)))
+	      (lambda (c1 c2 e)
+		(let ((c (quotify `(,@(unquotify c1) ,(unquotify c2))))
+		      (e (optimize-qq-expansion e)))
+		  (optimize-qq-expansion `(append ,c ,e)))))
+	     (pattern-rule
+	      `(append ,(? 'c1 const-pair?) ,(? 'c2 const-pair?))
+	      (lambda (c1 c2)
+		(let ((c (quotify (append (unquotify c1) (unquotify c2)))))
+		  c)))
+	     (pattern-rule
+	      `(append ,(? 'e1) ,(? 'e2))
+	      (lambda (e1 e2)
+		(let ((e1 (optimize-qq-expansion e1))
+		      (e2 (optimize-qq-expansion e2)))
+		  `(append ,e1 ,e2))))
+	     (pattern-rule
+	      `(cons ,(? 'c1 const?) (cons ,(? 'c2 const?) ,(? 'e)))
+	      (lambda (c1 c2 e)
+		(let ((c (quotify (list (unquotify c1) (unquotify c2))))
+		      (e (optimize-qq-expansion e)))
+		  (optimize-qq-expansion `(append ,c ,e)))))
+	     (pattern-rule
+	      `(cons ,(? 'e1) ,(? 'e2))
+	      (lambda (e1 e2)
+		(let ((e1 (optimize-qq-expansion e1))
+		      (e2 (optimize-qq-expansion e2)))
+		  (if (and (const? e1) (const? e2))
+		      (quotify (cons (unquotify e1) (unquotify e2)))
+		      `(cons ,e1 ,e2))))))))
+    (lambda (e)
+      (optimize-qq-expansion
+       (expand-qq e)))))
+#|
+(define <qq-rule>
+  (pattern-rule
+   `(quasiquote ,(? 'd))
+   (lambda (d) d)))|#
+
+(define <qq-rule>
+  (pattern-rule
+   (? 'qq (lambda (x) (list? x)) (lambda (x)
+                                   (and (equal? 'quasiquote (get-tag x))
+                                        (not (equal? '() (get-data x))))))
+   (lambda (c) (parse (expand-qq (cadr c))))))
 
 #| .:: PARSING INTERFACE ::. ______________________________________________________________________________________________________________________________________________________|#
-
-(load "guy-rules.scm")
-(load "max-rules.scm")
 
 (define tag-parse
   (let ((run
          (compose-patterns
+          <qq-rule>
+          
           <void-rule>
           <const-rule>
           <quote-rule>

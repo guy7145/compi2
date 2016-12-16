@@ -55,6 +55,17 @@
    '(lambda (x y z . e) (e (f x y z123)))
    '(cond)
    '(define (foo x y))
+   '(quasiquote a)
+   '(quasiquote (a))
+   '(quasiquote)
+   '(void)
+   'qq
+   '(qq)
+   'quasiquote
+   'seq
+   '(seq)
+   '(seq (seq 1))
+   '(seq (seq))
    ))
 
 (runAllTests
