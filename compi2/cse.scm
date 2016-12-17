@@ -27,24 +27,12 @@
 #|(define not-const? (lambda (e) (not (const? e))))
 (define id (lambda (e) e))|#
 (define not-list? (lambda (s) (not (list? s))))
-#|(define *reserved-words* '(and begin cond define do else if lambda let let* letrec or quasiquote unquote unquote-splicing quote set!))|#
-
-
-#|(define *optimizable-operators* '(+ - * / append and begin cond define do else if lambda let let* letrec or quasiquote unquote quote set!))
-
-(define optimizable-op?
-  (lambda (x)
-    (member x *optimizable-operators*)))
-
-(define not-optimizable-op?
-  (lambda (x)
-    (not (optimizable-op? x))))
-|#
 
 (define optimizable-op?
   (lambda (x)
     (and (not (number? x))
-         (not (equal? 'quote x)))))
+         (not (equal? 'quote x))
+         )))
 
 (define not-optimizable-op?
   (lambda (x)
@@ -81,32 +69,20 @@
           ((equal? (get-sub-name (car subs)) expr) (cons (count-sub (car subs) parent) (cdr subs)))
           (else (cons (car subs) (modify-subs (cdr subs) expr parent))))))
 
-(define not-reserved-word? (lambda (foo) #t))
-
 (define <application-rule>
   (lambda (parent)
-  (lambda (subs e)
-    ((pattern-rule
-      `(,(? 'foo not-reserved-word?) . ,(? 'args))
-      (lambda (foo . args)
-        (let* ((subs (modify-subs subs e parent))
-               (parent `(,foo ,@(car args)))
-               (subs (modify-subs subs foo parent)))
-          (fold-left
-           (lambda (acc e) ((<application-rule> parent) acc e))
-           subs
-           (car args))))) e (lambda () subs)))))
-
-;;(define tag-parse
-;;  (let ((run
-;;         (compose-patterns
-;;          <application-rule>
-;;          )
-;;         ))
-;;    (lambda (sexpr)
-;;      (run sexpr *error-continuation*))))
-
-;;(define parse tag-parse)
+    (lambda (subs e)
+      ((pattern-rule
+        `(,(? 'foo optimizable-op?) . ,(? 'args))
+        
+        (lambda (foo . args)
+          (let* ((this-expr `(,foo ,@(car args)))
+                 (subs (modify-subs subs foo this-expr))
+                 (subs (fold-left (lambda (acc e) ((<application-rule> this-expr) acc e)) subs (car args)))
+                 (subs (modify-subs subs e parent)))
+            subs))
+        
+        ) e (lambda () subs)))))
 
 (define expand-subs
   (letrec
@@ -116,40 +92,11 @@
             (cond ((null? e) subs)
                   ((not-list? e) subs)
                                         ;((equal? 'lambda (car e)) subs)
-                  ((equal? 'quote (car e)) subs)
+                  ;((equal? 'quote (car e)) subs)
                   ((list? e)
                    (let ((subs (fold-left (expand-subs-with-parent e) subs e)))
                      (modify-subs subs e parent))))))))
     (<application-rule> expr-root)))
-#|
-(define not-reserved-word? (lambda (foo) #t))
-(define expand-subs
-  (letrec
-      ((expand-subs-with-parent
-        (lambda (parent)
-          (lambda (subs e)
-            (cond ((null? e) subs)
-                  ((not-list? e) subs)
-                  ((list? e)
-                   (let ((subs (modify-subs subs e parent)))
-                     (fold-left
-                      (expand-subs-with-parent e) ; add parent! e
-                      subs
-                      e)))))))
-       
-       (<application-rule>
-        (lambda (subs)
-          (pattern-rule
-           `(,(? 'foo not-reserved-word?) . ,(? 'args))
-           (lambda (foo . args)
-             (let* ((parse (expand-subs-with-parent `(,foo ,args)))
-                    (parent `(,foo ,args))
-                    (subs (if (not (list? foo)) subs (modify-subs subs foo parent))))
-               (begin (display-colored-BIG (car args))
-               (fold-left 
-                (lambda(acc e) (parse acc e))
-                subs
-                (car args)))))))))|#
 
 (define clean-small-subs
   (lambda (subs)
@@ -164,10 +111,6 @@
           (else (find-sub-by-name (cdr subs) sub-name)))))
 
 (define ^is-sub-necessary?
-  #|(lambda (sub)
-    (display-green sub)
-    (display-red parent)
-    (> (get-sub-value sub) (get-sub-value parent))))|#
   (lambda (subs)
     (lambda (sub)
       (if (< (get-sub-value sub) enough-to-optimize)
@@ -192,17 +135,7 @@
       (fold-left (lambda (acc sub)
                    (if (necessary? sub) (append acc `(,sub)) acc)) '() subs))))
 
-    #|(if (< (length subs) 2)
-        subs
-        (let* ((first-sub (car subs))
-               (second-sub (cadr subs))
-               (rest-subs (cddr subs)))
-          
-          (if (^is-sub-necessary? second-sub first-sub)
-              `(,first-sub ,@(remove-unnecessary-subs (cons second-sub rest-subs)))
-              (remove-unnecessary-subs (cons first-sub rest-subs)))))))|#
-
-
+#|(define sort-subs-by-parenthood|#
 
 (define create-optimizable-subs
   (lambda (expr)
@@ -246,14 +179,14 @@
       (fold-left my-apply expr appliers))))
 
 (define apply-sub-on-itself
-  (lambda (subs)
-    (let ((current-sub (car subs))
-          (rest-subs (cdr subs)))
-      (if (null? rest-subs)
-          subs
-          (cons (apply-all-subs-to-expr rest-subs current-sub)
-                (apply-sub-on-itself rest-subs))
-          ))))
+  (let ((apply-subs-from-parent-to-child
+         (lambda (subs)
+           (let ((current-sub (car subs))
+                 (rest-subs (cdr subs)))
+             (if (null? rest-subs)
+                 subs
+                 (cons (apply-all-subs-to-expr rest-subs current-sub) (apply-sub-on-itself rest-subs)))))))
+    (lambda (subs) (reverse-list (apply-subs-from-parent-to-child (reverse-list subs))))))
 
 #| .:: CSE INTERFACE ::. ______________________________________________________________________________________________________________________________________________________|#
 
@@ -262,10 +195,15 @@
     (let ((let*-body (create-let*-body expr)))
       (if (null? let*-body)
           expr
-          (let ((final-let*-body (apply-sub-on-itself let*-body))
+          (let ((let*-body (apply-sub-on-itself let*-body))
                 (let-op (if (equal? 1 (length let*-body)) 'let 'let*)))
-            `(,let-op ,final-let*-body ,(apply-all-subs-to-expr let*-body expr)))
+            `(,let-op ,let*-body ,(apply-all-subs-to-expr let*-body expr)))
           ))))
+
+
+
+
+
 
 
 
