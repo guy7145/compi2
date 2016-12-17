@@ -1,4 +1,4 @@
-#|(load "pattern-matcher.scm")|#
+(load "pattern-matcher.scm")
 
 #| .:: code from Mayer's expand-qq file ::. ______________________________________________________________________________________________________________________________________________________|#
 
@@ -43,45 +43,113 @@
 
 (define optimizable-op?
   (lambda (x)
-    (not (number? x))))
+    (and (not (number? x))
+         (not (equal? 'quote x)))))
 
 (define not-optimizable-op?
   (lambda (x)
     (not (optimizable-op? x))))
 
 #| .:: BACKEND ::. ______________________________________________________________________________________________________________________________________________________|#
-
+(define expr-root 'root!)
 (define get-sub-name (lambda (sub) (car sub)))
-(define get-sub-value (lambda (sub) (cdr sub)))
+(define get-sub-value (lambda (sub) (cadr sub)))
+(define get-sub-parents (lambda (sub) (caddr sub)))
+(define first-parent car)
+(define rest-parents cdr)
 (define initial-instance-count 1)
 (define enough-to-optimize (+ initial-instance-count 1))
-(define make-sub (lambda (expr) (cons expr 1)))
-(define count-sub (lambda (sub) (cons (get-sub-name sub) (+ 1 (get-sub-value sub)))))
+(define make-sub (lambda (expr parent) (list expr 1 `(,parent))))
+(define add-sub-parent
+  (lambda (sub parent)
+    (let ((sub-parents (get-sub-parents sub)))
+      (if (member parent sub-parents)
+          sub-parents
+          `(,parent ,@sub-parents)))))
+
+(define count-sub
+  (lambda (sub parent)
+    (list (get-sub-name sub)
+          (+ 1 (get-sub-value sub))
+          (add-sub-parent sub parent))))
 
 (define modify-subs
-  (lambda (subs expr)
-    (if (not-optimizable-op? (car expr))
-        subs
-        (cond ((null? subs) `(,(make-sub expr)))
-              ((equal? (get-sub-name (car subs)) expr) (cons (count-sub (car subs)) (cdr subs)))
-              (else (cons (car subs) (modify-subs (cdr subs) expr)))))))
+  (lambda (subs expr parent)
+    (cond ((not-list? expr) subs)
+          ((not-optimizable-op? (car expr)) subs)
+          ((null? subs) `(,(make-sub expr parent)))
+          ((equal? (get-sub-name (car subs)) expr) (cons (count-sub (car subs) parent) (cdr subs)))
+          (else (cons (car subs) (modify-subs (cdr subs) expr parent))))))
+
+(define not-reserved-word? (lambda (foo) #t))
+
+(define <application-rule>
+  (lambda (parent)
+  (lambda (subs e)
+    ((pattern-rule
+      `(,(? 'foo not-reserved-word?) . ,(? 'args))
+      (lambda (foo . args)
+        (let* ((subs (modify-subs subs e parent))
+               (parent `(,foo ,@(car args)))
+               (subs (modify-subs subs foo parent)))
+          (fold-left
+           (lambda (acc e) ((<application-rule> parent) acc e))
+           subs
+           (car args))))) e (lambda () subs)))))
+
+;;(define tag-parse
+;;  (let ((run
+;;         (compose-patterns
+;;          <application-rule>
+;;          )
+;;         ))
+;;    (lambda (sexpr)
+;;      (run sexpr *error-continuation*))))
+
+;;(define parse tag-parse)
 
 (define expand-subs
-  (lambda (subs e)
-    (cond ((null? e) subs)
-          ((not-list? e) subs)
-          ((list? e)
-           (let ((subs (modify-subs subs e)))
-             (fold-left
-              expand-subs ; add e as paren
-              subs
-              e))))))
-
-#|(define expand-subs
-  (lambda (subs e)
-    (cond ((null? e) subs)
-          ((not-list? e) subs)
-          (else (modify-subs subs e)))))|#
+  (letrec
+      ((expand-subs-with-parent
+        (lambda (parent)
+          (lambda (subs e)
+            (cond ((null? e) subs)
+                  ((not-list? e) subs)
+                                        ;((equal? 'lambda (car e)) subs)
+                  ((equal? 'quote (car e)) subs)
+                  ((list? e)
+                   (let ((subs (fold-left (expand-subs-with-parent e) subs e)))
+                     (modify-subs subs e parent))))))))
+    (<application-rule> expr-root)))
+#|
+(define not-reserved-word? (lambda (foo) #t))
+(define expand-subs
+  (letrec
+      ((expand-subs-with-parent
+        (lambda (parent)
+          (lambda (subs e)
+            (cond ((null? e) subs)
+                  ((not-list? e) subs)
+                  ((list? e)
+                   (let ((subs (modify-subs subs e parent)))
+                     (fold-left
+                      (expand-subs-with-parent e) ; add parent! e
+                      subs
+                      e)))))))
+       
+       (<application-rule>
+        (lambda (subs)
+          (pattern-rule
+           `(,(? 'foo not-reserved-word?) . ,(? 'args))
+           (lambda (foo . args)
+             (let* ((parse (expand-subs-with-parent `(,foo ,args)))
+                    (parent `(,foo ,args))
+                    (subs (if (not (list? foo)) subs (modify-subs subs foo parent))))
+               (begin (display-colored-BIG (car args))
+               (fold-left 
+                (lambda(acc e) (parse acc e))
+                subs
+                (car args)))))))))|#
 
 (define clean-small-subs
   (lambda (subs)
@@ -89,24 +157,51 @@
           ((>= (get-sub-value (car subs)) enough-to-optimize) (cons (car subs) (clean-small-subs (cdr subs))))
           (else (clean-small-subs (cdr subs))))))
 
-(define is-sub-necessary?
-  (lambda (sub parent)
+(define find-sub-by-name
+  (lambda (subs sub-name)
+    (cond ((null? subs) (format "couldn't find sub named: ~s" sub-name))
+          ((equal? (get-sub-name (car subs)) sub-name) (car subs))
+          (else (find-sub-by-name (cdr subs) sub-name)))))
+
+(define ^is-sub-necessary?
+  #|(lambda (sub)
     (display-green sub)
     (display-red parent)
-    (> (get-sub-value sub) (get-sub-value parent))))
+    (> (get-sub-value sub) (get-sub-value parent))))|#
+  (lambda (subs)
+    (lambda (sub)
+      (if (< (get-sub-value sub) enough-to-optimize)
+          #f
+          (cond
+           ; expression has several parents
+           ((> (length (get-sub-parents sub)) 1) #t)
+           
+           ; specific case: parent is root and the expression has several instances
+           ((equal? expr-root (first-parent (get-sub-parents sub))) #t)
+
+           ; similar to the previous case: expression has several instances inside it's parent expression
+           ((> (get-sub-value sub) (get-sub-value (find-sub-by-name subs (first-parent (get-sub-parents sub))))) #t)
+           
+           ; in any other case the substitution is unnecessary
+           (else #f)
+           )))))
 
 (define remove-unnecessary-subs
   (lambda (subs)
-    (if (< (length subs) 2)
+    (let ((necessary? (^is-sub-necessary? subs)))
+      (fold-left (lambda (acc sub)
+                   (if (necessary? sub) (append acc `(,sub)) acc)) '() subs))))
+
+    #|(if (< (length subs) 2)
         subs
         (let* ((first-sub (car subs))
                (second-sub (cadr subs))
                (rest-subs (cddr subs)))
           
-          (if (is-sub-necessary? second-sub first-sub)
+          (if (^is-sub-necessary? second-sub first-sub)
               `(,first-sub ,@(remove-unnecessary-subs (cons second-sub rest-subs)))
-              (remove-unnecessary-subs (cons first-sub rest-subs)))))))
-          
+              (remove-unnecessary-subs (cons first-sub rest-subs)))))))|#
+
 
 
 (define create-optimizable-subs
@@ -167,7 +262,7 @@
     (let ((let*-body (create-let*-body expr)))
       (if (null? let*-body)
           expr
-          (let ((final-let*-body (reverse-list (apply-sub-on-itself let*-body)))
+          (let ((final-let*-body (apply-sub-on-itself let*-body))
                 (let-op (if (equal? 1 (length let*-body)) 'let 'let*)))
             `(,let-op ,final-let*-body ,(apply-all-subs-to-expr let*-body expr)))
           ))))
