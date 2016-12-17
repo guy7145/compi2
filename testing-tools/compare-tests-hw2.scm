@@ -1,5 +1,5 @@
                                         ; Change to your own location
-(load "../compi2/compiler.scm")
+(load "compiler.scm")
 (define my-parse-func parse)
 
 (load "tagparser.so")

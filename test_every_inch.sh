@@ -36,23 +36,7 @@ echo HW2 part2 compare tests:
 scheme --script compare-tests-hw2-CSE.scm | grep TESTS
 
 echo HW2 part2 my compare tests:
-scheme --script my-compare-tests-hw2-CSE.scm #| grep TESTS
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+scheme --script my-compare-tests-hw2-CSE.scm | grep TESTS
 
 
 

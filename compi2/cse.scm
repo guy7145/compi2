@@ -1,38 +1,15 @@
 (load "pattern-matcher.scm")
 
-#| .:: code from Mayer's expand-qq file ::. ______________________________________________________________________________________________________________________________________________________|#
-
-#|(define ^quote?
-  (lambda (tag)
-    (lambda (e)
-      (and (pair? e)
-           (eq? (car e) tag)
-           (pair? (cdr e))
-           (null? (cddr e))))))
-
-(define quote? (^quote? 'quote))
-(define unquote? (^quote? 'unquote))
-(define unquote-splicing? (^quote? 'unquote-splicing))
-
-(define const?
-  (let ((simple-sexprs-predicates
-         (list boolean? char? number? string?)))
-    (lambda (e)
-      (or (ormap (lambda (p?) (p? e))
-           simple-sexprs-predicates)
-          (quote? e)))))|#
-
 #| .:: tools and constants ::. ______________________________________________________________________________________________________________________________________________________|#
 
-#|(define not-const? (lambda (e) (not (const? e))))
-(define id (lambda (e) e))|#
 (define not-list? (lambda (s) (not (list? s))))
 
 (define optimizable-op?
   (lambda (x)
-    (and (not (number? x))
-         (not (equal? 'quote x))
-         )))
+    (and ;(not (number? x))
+     (not (equal? 'quote x))
+     )
+    ))
 
 (define not-optimizable-op?
   (lambda (x)
@@ -64,24 +41,41 @@
 (define modify-subs
   (lambda (subs expr parent)
     (cond ((not-list? expr) subs)
-          ((not-optimizable-op? (car expr)) subs)
           ((null? subs) `(,(make-sub expr parent)))
           ((equal? (get-sub-name (car subs)) expr) (cons (count-sub (car subs) parent) (cdr subs)))
           (else (cons (car subs) (modify-subs (cdr subs) expr parent))))))
+
+(define evil-quote-case-1?
+  (let ((deep-list? (lambda (s) (and (list? s) (list? (car s))))))
+  (lambda (f args)
+    (and (equal? 'quote f)
+         (list? args)
+         (deep-list? args)))))
+
+(define evil-quote-case-2?
+  (lambda (f args)
+    (and (equal? 'quote f)
+         (list? args)
+         (equal? 1 (length args)))))
+
+(define evil-quote?
+  (lambda (f args) (or (evil-quote-case-1? f args) (evil-quote-case-2? f args))))
 
 (define <application-rule>
   (lambda (parent)
     (lambda (subs e)
       ((pattern-rule
-        `(,(? 'foo optimizable-op?) . ,(? 'args))
-        
+        `(,(? 'foo) . ,(? 'args))
+
         (lambda (foo . args)
-          (let* ((this-expr `(,foo ,@(car args)))
-                 (subs (modify-subs subs foo this-expr))
-                 (subs (fold-left (lambda (acc e) ((<application-rule> this-expr) acc e)) subs (car args)))
-                 (subs (modify-subs subs e parent)))
-            subs))
-        
+          (if (evil-quote? foo (car args))
+              subs
+              (let* ((this-expr `(,foo ,@(car args)))
+                     (subs (modify-subs subs foo this-expr))
+                     (subs (fold-left (lambda (acc e) ((<application-rule> this-expr) acc e)) subs (car args)))
+                     (subs (modify-subs subs e parent)))
+                subs)))
+
         ) e (lambda () subs)))))
 
 (define expand-subs
@@ -92,7 +86,7 @@
             (cond ((null? e) subs)
                   ((not-list? e) subs)
                                         ;((equal? 'lambda (car e)) subs)
-                  ;((equal? 'quote (car e)) subs)
+                                        ;((equal? 'quote (car e)) subs)
                   ((list? e)
                    (let ((subs (fold-left (expand-subs-with-parent e) subs e)))
                      (modify-subs subs e parent))))))))
@@ -116,16 +110,16 @@
       (if (< (get-sub-value sub) enough-to-optimize)
           #f
           (cond
-           ; expression has several parents
+                                        ; expression has several parents
            ((> (length (get-sub-parents sub)) 1) #t)
-           
-           ; specific case: parent is root and the expression has several instances
+
+                                        ; specific case: parent is root and the expression has several instances
            ((equal? expr-root (first-parent (get-sub-parents sub))) #t)
 
-           ; similar to the previous case: expression has several instances inside it's parent expression
+                                        ; similar to the previous case: expression has several instances inside it's parent expression
            ((> (get-sub-value sub) (get-sub-value (find-sub-by-name subs (first-parent (get-sub-parents sub))))) #t)
-           
-           ; in any other case the substitution is unnecessary
+
+                                        ; in any other case the substitution is unnecessary
            (else #f)
            )))))
 
